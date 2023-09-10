@@ -1,8 +1,9 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Management;
+using System.Security.Cryptography.Xml;
 
 namespace Ares
 {
@@ -82,6 +83,15 @@ namespace Ares
             byte[] EncryptedData = Key.Encrypt(Data, RSAEncryptionPadding.OaepSHA1);
 
             return Convert.ToBase64String(EncryptedData);
+        }
+
+        private bool Verify(string Text, string Signature, RSA Key)
+        {
+            byte[] Data = Encoding.UTF8.GetBytes(Text);
+
+            byte[] SignatureData = Convert.FromBase64String(Signature);
+
+            return Key.VerifyData(Data, SignatureData, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         }
 
         private string Decrypt(string Text, RSA Key)
@@ -198,6 +208,10 @@ namespace Ares
 
             Task<HttpResponseMessage> RequestTask = Task.Run(() => HttpClient.PostAsync("http://client-api.ares.lol/api/standard/connect", RequestContent));
             Task<string> ResponseData = Task.Run(() => RequestTask.Result.Content.ReadAsStringAsync());
+            Task<string> XSignature = Task.Run(() => RequestTask.Result.Headers.GetValues("x-signature").FirstOrDefault<string>());
+
+            if (!Verify(ResponseData.Result.ToString(), XSignature.Result.ToString(), this.ServerRSA)) return false;
+
             Dictionary<string, string> Response = JsonSerializer.Deserialize<Dictionary<string, string>>(ResponseData.Result.ToString());
 
             Dictionary<string, string> DecryptedBody = new Dictionary<string, string>();
@@ -230,6 +244,10 @@ namespace Ares
 
             Task<HttpResponseMessage> RequestTask = Task.Run(() => HttpClient.PostAsync("http://client-api.ares.lol/api/standard/vector", RequestContent));
             Task<string> ResponseData = Task.Run(() => RequestTask.Result.Content.ReadAsStringAsync());
+            Task<string> XSignature = Task.Run(() => RequestTask.Result.Headers.GetValues("x-signature").FirstOrDefault<string>());
+
+            if (!Verify(ResponseData.Result.ToString(), XSignature.Result.ToString(), this.ServerRSA)) return AuthResponse.Invalid;
+
             Dictionary<string, string> Response = JsonSerializer.Deserialize<Dictionary<string, string>>(ResponseData.Result.ToString());
 
 
@@ -290,6 +308,10 @@ namespace Ares
 
             Task<HttpResponseMessage> RequestTask = Task.Run(() => HttpClient.PostAsync("http://client-api.ares.lol/api/standard/variable", RequestContent));
             Task<string> ResponseData = Task.Run(() => RequestTask.Result.Content.ReadAsStringAsync());
+            Task<string> XSignature = Task.Run(() => RequestTask.Result.Headers.GetValues("x-signature").FirstOrDefault<string>());
+
+            if (!Verify(ResponseData.Result.ToString(), XSignature.Result.ToString(), this.ServerRSA)) return "";
+
             Dictionary<string, string> Response = JsonSerializer.Deserialize<Dictionary<string, string>>(ResponseData.Result.ToString());
 
 
@@ -321,6 +343,10 @@ namespace Ares
 
             Task<HttpResponseMessage> RequestTask = Task.Run(() => HttpClient.PostAsync("http://client-api.ares.lol/api/standard/module", RequestContent));
             Task<string> ResponseData = Task.Run(() => RequestTask.Result.Content.ReadAsStringAsync());
+            Task<string> XSignature = Task.Run(() => RequestTask.Result.Headers.GetValues("x-signature").FirstOrDefault<string>());
+
+            if (!Verify(ResponseData.Result.ToString(), XSignature.Result.ToString(), this.ServerRSA)) return new SecureImage();
+
             Dictionary<string, object> Response = JsonSerializer.Deserialize<Dictionary<string, object>>(ResponseData.Result.ToString());
 
             Dictionary<string, string> DecryptedBody = new Dictionary<string, string>();
